@@ -1,0 +1,15 @@
+{
+  "watch": [
+    "index.js",
+    "commands/**/*.js",
+    "interactions/**/*.js",
+    "services/**/*.js",
+    "constants/**/*.js"
+  ],
+  "ignore": [
+    "node_modules/**",
+    ".git/**"
+  ],
+  "ext": "js,json",
+  "delay": "1000"
+}
