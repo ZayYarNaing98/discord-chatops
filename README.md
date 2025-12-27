@@ -167,8 +167,6 @@ Status updated in channel
 
 1. **User runs `/finlog`**
 
-   ![Step 1](https://via.placeholder.com/400x100?text=Select+Category+Dropdown)
-
 2. **Select a category**
    - Categories are fetched from Laravel API
    - Options: Office Supplies, Travel, Software, Sales Revenue, etc.
