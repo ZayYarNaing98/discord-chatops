@@ -96,7 +96,9 @@ client.commands = new Collection();
 
 // Load commands
 const leaveCommand = require("./commands/leave.command");
+const finlogCommand = require("./commands/finlog.command");
 client.commands.set(leaveCommand.data.name, leaveCommand);
+client.commands.set(finlogCommand.data.name, finlogCommand);
 
 // Ready
 client.once("ready", () => {
@@ -115,41 +117,101 @@ client.on("interactionCreate", async interaction => {
 
     // Modal submit
     if (interaction.isModalSubmit()) {
-      const {
-        createLeaveRequest,
-        formatLeaveMessage
-      } = require("./services/leave.service");
+      // Handle Leave Modal
+      if (interaction.customId === require("./constants/hr.constants").LEAVE_MODAL_ID) {
+        const {
+          createLeaveRequest,
+          formatLeaveMessage
+        } = require("./services/leave.service");
 
-      const {
-        buildApprovalButtons
-      } = require("./interactions/leave.buttons");
+        const {
+          buildApprovalButtons
+        } = require("./interactions/leave.buttons");
 
-      const {
-        HR_REVIEW_CHANNEL_ID,
-        LEAVE_MODAL_ID
-      } = require("./constants/hr.constants");
+        const {
+          HR_REVIEW_CHANNEL_ID
+        } = require("./constants/hr.constants");
 
-      if (interaction.customId !== LEAVE_MODAL_ID) return;
+        const leaveRequest = createLeaveRequest(interaction);
 
-      const leaveRequest = createLeaveRequest(interaction);
+        const channel = await client.channels.fetch(HR_REVIEW_CHANNEL_ID);
 
-      const channel = await client.channels.fetch(HR_REVIEW_CHANNEL_ID);
+        await channel.send({
+          content: formatLeaveMessage(leaveRequest),
+          components: [buildApprovalButtons(leaveRequest.requestId)]
+        });
 
-      await channel.send({
-        content: formatLeaveMessage(leaveRequest),
-        components: [buildApprovalButtons(leaveRequest.requestId)]
-      });
+        await interaction.reply({
+          content: "✅ Leave request submitted for approval.",
+          ephemeral: true
+        });
+      }
 
-      await interaction.reply({
-        content: "✅ Leave request submitted for approval.",
-        ephemeral: true
-      });
+      // Handle FinLog Modal
+      if (interaction.customId.startsWith(require("./constants/finlog.constants").FINLOG_MODAL_ID)) {
+        const {
+          createFinLogEntry
+        } = require("./services/finlog.service");
+
+        const { fetchCategories } = require("./services/api.service");
+
+        const {
+          buildConfirmButtons,
+          formatPreviewMessage,
+          storePendingEntry
+        } = require("./interactions/finlog.buttons");
+
+        // Extract category ID and type from customId (format: "finlog:entry:categoryId:type")
+        const [, , categoryId, type] = interaction.customId.split(":");
+
+        // Get category name
+        const categories = await fetchCategories();
+        const category = categories.find(cat => cat.id.toString() === categoryId);
+
+        if (!category) {
+          return interaction.reply({
+            content: "❌ Category not found.",
+            ephemeral: true
+          });
+        }
+
+        const finlogEntry = createFinLogEntry(interaction, categoryId, category.name, type);
+
+        // Store entry temporarily for confirmation
+        storePendingEntry(finlogEntry.entryId, finlogEntry);
+
+        // Show preview with confirm/cancel buttons
+        await interaction.reply({
+          content: formatPreviewMessage(finlogEntry),
+          components: [buildConfirmButtons(finlogEntry.entryId)],
+          ephemeral: true
+        });
+      }
     }
 
-    // Button click
+    // String Select Menu
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === "finlog:select_category") {
+        const { handleFinLogSelectMenu } = require("./interactions/finlog.selectmenu");
+        await handleFinLogSelectMenu(interaction);
+      }
+
+      if (interaction.customId.startsWith("finlog:select_type:")) {
+        const { handleFinLogTypeSelectMenu } = require("./interactions/finlog.selectmenu");
+        await handleFinLogTypeSelectMenu(interaction);
+      }
+    }
+
+    // Button click - Leave
     if (interaction.isButton() && interaction.customId.startsWith("leave:")) {
       const { handleLeaveButtons } = require("./interactions/leave.buttons");
       await handleLeaveButtons(interaction);
+    }
+
+    // Button click - FinLog
+    if (interaction.isButton() && interaction.customId.startsWith("finlog:")) {
+      const { handleFinLogButtons } = require("./interactions/finlog.buttons");
+      await handleFinLogButtons(interaction, client);
     }
 
   } catch (err) {
